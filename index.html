@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>水果消消樂</title>
+<style>
+  :root{
+    --bg1:#2b1b5a; --bg2:#0f3b6b; --panel:rgba(255,255,255,.08);
+    --line:rgba(255,255,255,.15); --text:#fff; --muted:rgba(255,255,255,.65);
+    --accent:#ffd84d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji";
+    color:var(--text);
+    background:radial-gradient(circle at 20% 10%,#5b3aa8 0,transparent 45%),
+               radial-gradient(circle at 90% 90%,#1a6fb0 0,transparent 50%),
+               linear-gradient(160deg,var(--bg1),var(--bg2));
+    display:flex;justify-content:center;align-items:flex-start;
+    padding:16px;overflow-x:hidden;user-select:none;-webkit-user-select:none;
+  }
+  .app{width:min(520px,100%);display:flex;flex-direction:column;gap:12px}
+  h1{text-align:center;font-size:28px;letter-spacing:2px;text-shadow:0 3px 0 rgba(0,0,0,.25)}
+  h1 span{color:var(--accent)}
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 6px;text-align:center}
+  .stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+  .stat small{color:var(--muted);font-size:12px}
+  .stat.warn b{color:#ff7b7b}
+  .progress{height:12px;border-radius:99px;background:rgba(0,0,0,.3);overflow:hidden;border:1px solid var(--line)}
+  #bar{height:100%;width:0;background:linear-gradient(90deg,#6bdc7a,#ffd84d,#ff9f43);transition:width .4s}
+  #board{
+    position:relative;width:100%;aspect-ratio:1;overflow:hidden;
+    background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:18px;
+    touch-action:none;container-type:inline-size;
+    background-image:
+      linear-gradient(45deg,rgba(255,255,255,.04) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.04) 75%),
+      linear-gradient(45deg,rgba(255,255,255,.04) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.04) 75%);
+    background-size:25% 25%;background-position:0 0,12.5% 12.5%;
+  }
+  .tile{position:absolute;width:12.5%;height:12.5%;padding:3px;transition:left .22s ease,top .3s cubic-bezier(.5,0,.6,1.3);cursor:pointer;z-index:1}
+  .tile span{
+    position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%;
+    border-radius:22%;font-size:7cqw;line-height:1;
+    background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.55),transparent 45%),var(--c);
+    box-shadow:inset 0 -4px 0 rgba(0,0,0,.18),0 3px 6px rgba(0,0,0,.25);
+    transition:transform .15s;
+  }
+  .tile.sel{z-index:3}
+  .tile.sel span{transform:scale(1.12);box-shadow:0 0 0 3px #fff,0 0 18px #fff}
+  .tile.hint span{animation:wiggle .5s ease-in-out 4}
+  .tile.pop span{animation:pop .26s ease-in forwards}
+  .tile.up span{animation:upgrade .4s ease-out}
+  .tile[data-special="row"] span::after,.tile[data-special="col"] span::after{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:repeating-linear-gradient(0deg,transparent 0 18%,rgba(255,255,255,.55) 18% 30%);
+  }
+  .tile[data-special="col"] span::after{background:repeating-linear-gradient(90deg,transparent 0 18%,rgba(255,255,255,.55) 18% 30%)}
+  .tile[data-special="bomb"] span{box-shadow:0 0 0 3px #fff,0 0 16px 4px var(--c);animation:pulse 1.2s ease-in-out infinite}
+  .tile[data-special="bomb"] span::after{content:"✦";position:absolute;right:6%;top:2%;font-size:3cqw;color:#fff}
+  @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg) scale(1.08)}75%{transform:rotate(12deg) scale(1.08)}}
+  @keyframes pop{to{transform:scale(0) rotate(90deg);opacity:0}}
+  @keyframes upgrade{0%{transform:scale(1.4)}100%{transform:scale(1)}}
+  @keyframes pulse{50%{transform:scale(.92)}}
+  .beam{position:absolute;z-index:4;pointer-events:none;background:linear-gradient(90deg,transparent,#fff,transparent);animation:fade .35s forwards}
+  .beam.col{background:linear-gradient(180deg,transparent,#fff,transparent)}
+  .blast{position:absolute;z-index:4;pointer-events:none;border-radius:50%;background:radial-gradient(circle,#fff 0,rgba(255,216,77,.8) 40%,transparent 70%);animation:fade .4s forwards}
+  @keyframes fade{from{opacity:1}to{opacity:0}}
+  .float{position:absolute;z-index:5;pointer-events:none;transform:translate(-50%,-50%);font-weight:800;font-size:5cqw;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.4);animation:rise .9s ease-out forwards;white-space:nowrap}
+  .float.combo{font-size:8cqw;color:var(--accent)}
+  @keyframes rise{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-10cqw}}
+  .controls{display:flex;gap:10px;justify-content:center}
+  button{
+    font:inherit;font-weight:700;color:#2b1b5a;background:var(--accent);border:0;border-radius:99px;
+    padding:10px 22px;cursor:pointer;box-shadow:0 4px 0 #c9a21a;transition:transform .1s;
+  }
+  button:active{transform:translateY(3px);box-shadow:0 1px 0 #c9a21a}
+  button.ghost{background:rgba(255,255,255,.15);color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  .tip{text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+  #overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(10,5,30,.7);backdrop-filter:blur(4px);padding:16px}
+  #overlay[hidden]{display:none}
+  .card{background:linear-gradient(160deg,#4a2f95,#1d4f8a);border:1px solid var(--line);border-radius:22px;padding:28px 24px;text-align:center;max-width:340px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+  .card h2{font-size:26px;margin-bottom:8px}
+  .card p{color:var(--muted);margin-bottom:20px;line-height:1.7}
+  #toast{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.75);padding:8px 16px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;z-index:20;pointer-events:none}
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🍓 水果<span>消消樂</span></h1>
+  <div class="hud">
+    <div class="stat"><small>關卡</small><b id="level">1</b></div>
+    <div class="stat"><small>分數</small><b id="score">0</b></div>
+    <div class="stat"><small>目標</small><b id="target">0</b></div>
+    <div class="stat" id="movesBox"><small>步數</small><b id="moves">0</b></div>
+  </div>
+  <div class="progress"><div id="bar"></div></div>
+  <div id="board"></div>
+  <div class="controls">
+    <button id="hintBtn">💡 提示</button>
+    <button class="ghost" id="restartBtn">↻ 重新開始</button>
+  </div>
+  <p class="tip">拖曳或點擊相鄰水果交換，三個以上連成一線即可消除。<br>
+    連 4 個 → 直線消除 ｜ 連 5 個或 L/T 形 → 炸彈 ✦ ｜ 最高分：<b id="best">0</b></p>
+</div>
+
+<div id="overlay">
+  <div class="card">
+    <h2 id="ovTitle">水果消消樂</h2>
+    <p id="ovText">在步數用完之前達到目標分數，就能過關！</p>
+    <button id="ovBtn">開始遊戲</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const N = 8;
+const GEMS   = ['🍓','🍋','🍇','🫐','🍊','🥝'];
+const COLORS = ['#ff6b8a','#ffe066','#b57bff','#5aa9ff','#ffab5c','#7ee08a'];
+const board = document.getElementById('board');
+const $ = id => document.getElementById(id);
+
+let grid = [], busy = true, selected = null, drag = null;
+let level = 1, score = 0, total = 0, target = 0, moves = 0, best = 0;
+let overlayAction = null;
+
+try { best = +localStorage.getItem('match3-best') || 0; } catch (e) {}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rand = () => Math.floor(Math.random() * GEMS.length);
+const inB = (r, c) => r >= 0 && r < N && c >= 0 && c < N;
+
+/* ---------- tiles ---------- */
+function makeTile(type, r, c) {
+  const el = document.createElement('div');
+  el.className = 'tile';
+  el.innerHTML = '<span></span>';
+  const t = { type, special: null, el, r, c };
+  look(t); place(t, r, c);
+  el.addEventListener('pointerdown', e => onDown(e, t));
+  board.appendChild(el);
+  return t;
+}
+function look(t) {
+  t.el.firstChild.textContent = GEMS[t.type];
+  t.el.style.setProperty('--c', COLORS[t.type]);
+  t.el.dataset.special = t.special || '';
+}
+function place(t, r, c) {
+  t.r = r; t.c = c;
+  t.el.style.left = c * 12.5 + '%';
+  t.el.style.top = r * 12.5 + '%';
+}
+
+/* ---------- board logic ---------- */
+function findRuns() {
+  const runs = [];
+  for (let r = 0; r < N; r++) {
+    let c = 0;
+    while (c < N) {
+      let e = c + 1;
+      while (e < N && grid[r][e].type === grid[r][c].type) e++;
+      if (e - c >= 3) runs.push({ dir: 'h', cells: Array.from({ length: e - c }, (_, i) => [r, c + i]) });
+      c = e;
+    }
+  }
+  for (let c = 0; c < N; c++) {
+    let r = 0;
+    while (r < N) {
+      let e = r + 1;
+      while (e < N && grid[e][c].type === grid[r][c].type) e++;
+      if (e - r >= 3) runs.push({ dir: 'v', cells: Array.from({ length: e - r }, (_, i) => [r + i, c]) });
+      r = e;
+    }
+  }
+  return runs;
+}
+
+function findMove() {
+  const swap = (a, b, c, d) => { const t = grid[a][b]; grid[a][b] = grid[c][d]; grid[c][d] = t; };
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    for (const [dr, dc] of [[0, 1], [1, 0]]) {
+      const r2 = r + dr, c2 = c + dc;
+      if (!inB(r2, c2)) continue;
+      swap(r, c, r2, c2);
+      const ok = findRuns().length > 0;
+      swap(r, c, r2, c2);
+      if (ok) return [[r, c], [r2, c2]];
+    }
+  }
+  return null;
+}
+
+function buildBoard() {
+  board.querySelectorAll('.tile').forEach(el => el.remove());
+  let types;
+  for (let tries = 0; tries < 200; tries++) {
+    types = [];
+    for (let r = 0; r < N; r++) {
+      types.push([]);
+      for (let c = 0; c < N; c++) {
+        let t;
+        do { t = rand(); } while (
+          (c >= 2 && types[r][c - 1] === t && types[r][c - 2] === t) ||
+          (r >= 2 && types[r - 1][c] === t && types[r - 2][c] === t));
+        types[r].push(t);
+      }
+    }
+    grid = types.map(row => row.map(t => ({ type: t })));
+    if (findMove()) break;
+  }
+  grid = types.map((row, r) => row.map((t, c) => makeTile(t, r, c)));
+}
+
+async function shuffle() {
+  toast('沒有可走的步了，重新洗牌！');
+  const tiles = grid.flat();
+  for (let tries = 0; tries < 300; tries++) {
+    for (let i = tiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+    }
+    grid = Array.from({ length: N }, (_, r) => tiles.slice(r * N, r * N + N));
+    if (!findRuns().length && findMove()) break;
+  }
+  grid.forEach((row, r) => row.forEach((t, c) => place(t, r, c)));
+  await sleep(350);
+}
+
+/* ---------- input ---------- */
+function onDown(e, t) {
+  if (busy) return;
+  e.preventDefault();
+  drag = { t, x: e.clientX, y: e.clientY, moved: false };
+}
+window.addEventListener('pointermove', e => {
+  if (!drag || drag.moved || busy) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  const th = board.clientWidth / N * 0.3;
+  if (Math.abs(dx) < th && Math.abs(dy) < th) return;
+  drag.moved = true;
+  let dr = 0, dc = 0;
+  if (Math.abs(dx) > Math.abs(dy)) dc = Math.sign(dx); else dr = Math.sign(dy);
+  const { r, c } = drag.t;
+  setSelected(null);
+  if (inB(r + dr, c + dc)) trySwap(r, c, r + dr, c + dc);
+});
+window.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.moved || busy) return;
+  const t = d.t;
+  if (!selected) return setSelected(t);
+  if (selected === t) return setSelected(null);
+  const s = selected;
+  if (Math.abs(s.r - t.r) + Math.abs(s.c - t.c) === 1) {
+    setSelected(null);
+    trySwap(s.r, s.c, t.r, t.c);
+  } else setSelected(t);
+});
+function setSelected(t) {
+  if (selected) selected.el.classList.remove('sel');
+  selected = t;
+  if (t) t.el.classList.add('sel');
+}
+
+/* ---------- turn ---------- */
+function swapCells(r1, c1, r2, c2) {
+  const a = grid[r1][c1], b = grid[r2][c2];
+  grid[r1][c1] = b; grid[r2][c2] = a;
+  place(a, r2, c2); place(b, r1, c1);
+}
+
+async function trySwap(r1, c1, r2, c2) {
+  busy = true;
+  clearHint();
+  swapCells(r1, c1, r2, c2);
+  await sleep(230);
+  if (!findRuns().length) {
+    swapCells(r1, c1, r2, c2);
+    await sleep(230);
+    busy = false;
+    return;
+  }
+  moves--; hud();
+  await resolve([[r1, c1], [r2, c2]]);
+  await afterTurn();
+}
+
+function effect(t) {
+  const out = [];
+  if (t.special === 'row') for (let c = 0; c < N; c++) out.push(t.r * N + c);
+  if (t.special === 'col') for (let r = 0; r < N; r++) out.push(r * N + t.c);
+  if (t.special === 'bomb')
+    for (let r = t.r - 1; r <= t.r + 1; r++) for (let c = t.c - 1; c <= t.c + 1; c++)
+      if (inB(r, c)) out.push(r * N + c);
+  return out;
+}
+
+function fx(t) {
+  const d = document.createElement('div');
+  if (t.special === 'row') { d.className = 'beam'; Object.assign(d.style, { left: 0, width: '100%', top: t.r * 12.5 + 3 + '%', height: '6.5%' }); }
+  else if (t.special === 'col') { d.className = 'beam col'; Object.assign(d.style, { top: 0, height: '100%', left: t.c * 12.5 + 3 + '%', width: '6.5%' }); }
+  else { d.className = 'blast'; Object.assign(d.style, { left: (t.c - 1) * 12.5 + '%', top: (t.r - 1) * 12.5 + '%', width: '37.5%', height: '37.5%' }); }
+  board.appendChild(d);
+  setTimeout(() => d.remove(), 450);
+}
+
+function floatText(text, r, c, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'float ' + cls;
+  d.textContent = text;
+  d.style.left = (c + 0.5) * 12.5 + '%';
+  d.style.top = (r + 0.5) * 12.5 + '%';
+  board.appendChild(d);
+  setTimeout(() => d.remove(), 900);
+}
+
+async function resolve(swapPos) {
+  let combo = 0;
+  while (true) {
+    const runs = findRuns();
+    if (!runs.length) break;
+    combo++;
+
+    const count = new Map();
+    runs.forEach(run => run.cells.forEach(([r, c]) => count.set(r * N + c, (count.get(r * N + c) || 0) + 1)));
+
+    // decide which specials to create
+    const creates = new Map();
+    runs.forEach(run => {
+      const inter = run.cells.find(([r, c]) => count.get(r * N + c) > 1);
+      let sp = null;
+      if (inter || run.cells.length >= 5) sp = 'bomb';
+      else if (run.cells.length === 4) sp = run.dir === 'h' ? 'row' : 'col';
+      if (!sp) return;
+      const free = run.cells.filter(([r, c]) => !grid[r][c].special);
+      if (!free.length) return;
+      const pick = (inter && !grid[inter[0]][inter[1]].special && inter)
+        || free.find(([r, c]) => swapPos.some(([a, b]) => a === r && b === c))
+        || free[Math.floor(free.length / 2)];
+      const k = pick[0] * N + pick[1];
+      if (!creates.has(k) || sp === 'bomb') creates.set(k, sp);
+    });
+
+    // cells to clear, with chain reactions from specials
+    const clear = new Set();
+    count.forEach((_, k) => { if (!creates.has(k)) clear.add(k); });
+    const queue = [...clear], fired = new Set();
+    while (queue.length) {
+      const k = queue.pop();
+      const t = grid[Math.floor(k / N)][k % N];
+      if (t.special && !fired.has(k)) {
+        fired.add(k); fx(t);
+        for (const k2 of effect(t)) if (!clear.has(k2) && !creates.has(k2)) { clear.add(k2); queue.push(k2); }
+      }
+    }
+
+    // upgrade new specials
+    creates.forEach((sp, k) => {
+      const t = grid[Math.floor(k / N)][k % N];
+      t.special = sp; look(t);
+      t.el.classList.remove('up'); void t.el.offsetWidth; t.el.classList.add('up');
+    });
+
+    // score
+    const gained = (clear.size * 10 + creates.size * 20) * combo;
+    score += gained; total += gained; hud();
+    let sr = 0, sc = 0;
+    clear.forEach(k => { sr += Math.floor(k / N); sc += k % N; });
+    if (clear.size) floatText('+' + gained, sr / clear.size, sc / clear.size);
+    if (combo >= 2) floatText(['', '', '不錯！', '太棒了！', '驚人！', '無敵！'][Math.min(combo, 5)] + ' x' + combo, 3.5, 3.5, 'combo');
+
+    // pop
+    clear.forEach(k => grid[Math.floor(k / N)][k % N].el.classList.add('pop'));
+    await sleep(260);
+    clear.forEach(k => {
+      const r = Math.floor(k / N), c = k % N;
+      grid[r][c].el.remove(); grid[r][c] = null;
+    });
+
+    // gravity + refill
+    const fresh = [];
+    for (let c = 0; c < N; c++) {
+      let w = N - 1;
+      for (let r = N - 1; r >= 0; r--) {
+        if (grid[r][c]) {
+          if (r !== w) { grid[w][c] = grid[r][c]; grid[r][c] = null; place(grid[w][c], w, c); }
+          w--;
+        }
+      }
+      const missing = w + 1;
+      for (let r = w; r >= 0; r--) {
+        const t = makeTile(rand(), r - missing, c);
+        grid[r][c] = t; fresh.push([t, r]);
+      }
+    }
+    void board.offsetHeight;
+    fresh.forEach(([t, r]) => place(t, r, t.c));
+    await sleep(340);
+    swapPos = [];
+  }
+}
+
+async function afterTurn() {
+  if (score >= target) {
+    saveBest();
+    showOverlay('🎉 過關！', `第 ${level} 關完成，得分 ${score}，剩餘 ${moves} 步。<br>累計總分：${total}`, '下一關', () => { level++; startLevel(); });
+    return;
+  }
+  if (moves <= 0) {
+    saveBest();
+    showOverlay('😢 步數用完了', `第 ${level} 關差 ${target - score} 分。<br>累計總分：${total}`, '再試一次', () => { total -= score; startLevel(); });
+    return;
+  }
+  if (!findMove()) await shuffle();
+  busy = false;
+}
+
+/* ---------- hints ---------- */
+let hintTimer = null;
+function clearHint() {
+  clearTimeout(hintTimer);
+  board.querySelectorAll('.hint').forEach(el => el.classList.remove('hint'));
+}
+$('hintBtn').onclick = () => {
+  if (busy) return;
+  clearHint();
+  const m = findMove();
+  if (!m) return;
+  m.forEach(([r, c]) => grid[r][c].el.classList.add('hint'));
+  hintTimer = setTimeout(clearHint, 2100);
+};
+
+/* ---------- ui ---------- */
+function hud() {
+  $('level').textContent = level;
+  $('score').textContent = score;
+  $('target').textContent = target;
+  $('moves').textContent = moves;
+  $('movesBox').classList.toggle('warn', moves <= 5);
+  $('bar').style.width = Math.min(100, score / target * 100) + '%';
+  $('best').textContent = Math.max(best, total);
+}
+function saveBest() {
+  if (total > best) { best = total; try { localStorage.setItem('match3-best', best); } catch (e) {} }
+}
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1600);
+}
+function showOverlay(title, text, btn, action) {
+  $('ovTitle').textContent = title;
+  $('ovText').innerHTML = text;
+  $('ovBtn').textContent = btn;
+  overlayAction = action;
+  $('overlay').hidden = false;
+  busy = true;
+}
+$('ovBtn').onclick = () => { $('overlay').hidden = true; overlayAction && overlayAction(); };
+$('restartBtn').onclick = () => { saveBest(); level = 1; total = 0; startLevel(); };
+
+function startLevel() {
+  score = 0;
+  target = 800 + (level - 1) * 500;
+  moves = 20 + Math.floor((level - 1) / 2) * 2;
+  setSelected(null); clearHint();
+  buildBoard(); hud();
+  busy = false;
+}
+
+overlayAction = () => startLevel();
+buildBoard(); target = 800; moves = 20; hud();
+</script>
+</body>
+</html>
